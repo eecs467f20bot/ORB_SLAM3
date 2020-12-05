@@ -191,4 +191,8 @@ add_executable(stereo_inertial_tum_vi
 Examples/Stereo-Inertial/stereo_inertial_tum_vi.cc)
 target_link_libraries(stereo_inertial_tum_vi ${PROJECT_NAME})
 
+find_package(lcm REQUIRED)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR}/slam-driver/driver_code)
 
+add_executable(mono_inertial_mbot slam-driver/driver_code/mono_inertial_mbot.cc)
+target_link_libraries(mono_inertial_mbot ${PROJECT_NAME} lcm)

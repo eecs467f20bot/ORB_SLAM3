@@ -191,8 +191,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
 
     //Initialize the Loop Closing thread and launch
     // mSensor!=MONOCULAR && mSensor!=IMU_MONOCULAR
-    mpLoopCloser = new LoopClosing(mpAtlas, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR); // mSensor!=MONOCULAR);
-    mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
+    //mpLoopCloser = new LoopClosing(mpAtlas, mpKeyFrameDatabase, mpVocabulary, mSensor!=MONOCULAR); // mSensor!=MONOCULAR);
+    //mptLoopClosing = new thread(&ORB_SLAM3::LoopClosing::Run, mpLoopCloser);
 
     //Initialize the Viewer thread and launch
     if(bUseViewer)
@@ -200,7 +200,7 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
         mpViewer = new Viewer(this, mpFrameDrawer,mpMapDrawer,mpTracker,strSettingsFile);
         mptViewer = new thread(&Viewer::Run, mpViewer);
         mpTracker->SetViewer(mpViewer);
-        mpLoopCloser->mpViewer = mpViewer;
+        //mpLoopCloser->mpViewer = mpViewer;
         mpViewer->both = mpFrameDrawer->both;
     }
 
@@ -211,8 +211,8 @@ System::System(const string &strVocFile, const string &strSettingsFile, const eS
     mpLocalMapper->SetTracker(mpTracker);
     mpLocalMapper->SetLoopCloser(mpLoopCloser);
 
-    mpLoopCloser->SetTracker(mpTracker);
-    mpLoopCloser->SetLocalMapper(mpLocalMapper);
+    //mpLoopCloser->SetTracker(mpTracker);
+    //mpLoopCloser->SetLocalMapper(mpLocalMapper);
 
     // Fix verbosity
     Verbose::SetTh(Verbose::VERBOSITY_QUIET);
@@ -448,7 +448,7 @@ void System::ResetActiveMap()
 void System::Shutdown()
 {
     mpLocalMapper->RequestFinish();
-    mpLoopCloser->RequestFinish();
+    //mpLoopCloser->RequestFinish();
     if(mpViewer)
     {
         mpViewer->RequestFinish();
@@ -461,13 +461,13 @@ void System::Shutdown()
     {
         if(!mpLocalMapper->isFinished())
             cout << "mpLocalMapper is not finished" << endl;
-        if(!mpLoopCloser->isFinished())
-            cout << "mpLoopCloser is not finished" << endl;
-        if(mpLoopCloser->isRunningGBA()){
-            cout << "mpLoopCloser is running GBA" << endl;
-            cout << "break anyway..." << endl;
-            break;
-        }
+        //if(!mpLoopCloser->isFinished())
+            //cout << "mpLoopCloser is not finished" << endl;
+        //if(mpLoopCloser->isRunningGBA()){
+        //    cout << "mpLoopCloser is running GBA" << endl;
+        //    cout << "break anyway..." << endl;
+        //    break;
+        //}
         usleep(5000);
     }
 

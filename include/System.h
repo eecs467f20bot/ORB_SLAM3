@@ -39,6 +39,7 @@
 #include "ORBVocabulary.h"
 #include "Viewer.h"
 #include "ImuTypes.h"
+#include "OdometryTypes.h"
 
 
 namespace ORB_SLAM3
@@ -87,7 +88,8 @@ public:
         STEREO=1,
         RGBD=2,
         IMU_MONOCULAR=3,
-        IMU_STEREO=4
+        IMU_STEREO=4,
+        ODOMETRIC_MONOCULAR=5
     };
 
     // File type
@@ -117,6 +119,10 @@ public:
     // Returns the camera pose (empty if tracking fails).
     cv::Mat TrackMonocular(const cv::Mat &im, const double &timestamp, const vector<IMU::Point>& vImuMeas = vector<IMU::Point>(), string filename="");
 
+    // Proccess the given monocular frame and optionally imu data
+    // Input images: RGB (CV_8UC3) or grayscale (CV_8U). RGB is converted to grayscale.
+    // Returns the camera pose (empty if tracking fails).
+    cv::Mat TrackOdometric(const cv::Mat &im, const double &timestamp, const vector<odom::Point>& vOdomMeas);
 
     // This stops local mapping thread (map building) and performs only camera tracking.
     void ActivateLocalizationMode();

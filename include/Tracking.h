@@ -37,6 +37,7 @@
 #include "MapDrawer.h"
 #include "System.h"
 #include "ImuTypes.h"
+#include "OdometryTypes.h"
 
 #include "GeometricCamera.h"
 
@@ -74,6 +75,7 @@ public:
     // cv::Mat GrabImageImuMonocular(const cv::Mat &im, const double &timestamp);
 
     void GrabImuData(const IMU::Point &imuMeasurement);
+    void GrabOdomData(const odom::Point &odomMeasurement);
 
     void SetLocalMapper(LocalMapping* pLocalMapper);
     void SetLoopClosing(LoopClosing* pLoopClosing);
@@ -201,6 +203,7 @@ protected:
 
     // Perform preintegration from last frame
     void PreintegrateIMU();
+    void PreintegrateOdom();
 
     // Reset IMU biases and compute frame velocity
     void ResetFrameIMU();
@@ -216,8 +219,13 @@ protected:
     // Queue of IMU measurements between frames
     std::list<IMU::Point> mlQueueImuData;
 
+    // Queue of Odometry measurements between frames
+    std::list<odom::Point> mlQueueOdomData;
+
     // Vector of IMU measurements from previous to current frame (to be filled by PreintegrateIMU)
     std::vector<IMU::Point> mvImuFromLastFrame;
+    // Vector of Odometry measurements from previous to current frame (to be filled by PreintegrateOdom)
+    std::vector<odom::Point> mvOdomFromLastFrame;
     std::mutex mMutexImuQueue;
 
     // Imu calibration parameters

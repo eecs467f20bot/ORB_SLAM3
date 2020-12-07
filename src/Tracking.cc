@@ -1111,7 +1111,124 @@ void Tracking::GrabImuData(const IMU::Point &imuMeasurement)
     mlQueueImuData.push_back(imuMeasurement);
 }
 
-void Tracking::PreintegrateIMU()
+void Tracking::GrabOdomData(const odom::Point &odomMeasurement)
+{
+    unique_lock<mutex> lock(mMutexImuQueue);
+    mlQueueOdomData.push_back(odomMeasurement);
+}
+
+void Tracking::PreintegrateOdom()
+{
+    //cout << "start preintegration" << endl;
+
+    if(!mCurrentFrame.mpPrevFrame)
+    {
+        Verbose::PrintMess("non prev frame ", Verbose::VERBOSITY_NORMAL);
+        mCurrentFrame.setIntegrated();
+        return;
+    }
+
+    // cout << "start loop. Total meas:" << mlQueueImuData.size() << endl;
+
+    mvOdomFromLastFrame.clear();
+    mvOdomFromLastFrame.reserve(mlQueueOdomData.size());
+    if(mlQueueOdomData.size() == 0)
+    {
+        Verbose::PrintMess("No Odom data in mlQueueOdomData!!", Verbose::VERBOSITY_NORMAL);
+        mCurrentFrame.setIntegrated();
+        return;
+    }
+
+    while(true)
+    {
+        bool bSleep = false;
+        {
+            unique_lock<mutex> lock(mMutexImuQueue);
+            if(mlQueueOdomData.size())
+            {
+                odom::Point& o = mlQueueOdomData.front();
+                cout.precision(17);
+                if (o.t < mCurrentFrame.mpPrevFrame->mTimeStamp - 0.001l)
+                    mlQueueOdomData.pop_front(); // It's redundant
+                else if (o.t < mCurrentFrame.mTimeStamp-0.001l) {
+                    // It's relevant, but keep it around
+                    mvOdomFromLastFrame.push_back(o);
+                    mlQueueOdomData.pop_front();
+                } else {
+                    mvOdomFromLastFrame.push_back(o);
+                    break;
+                }
+            }
+            else
+            {
+                break;
+                bSleep = true;
+            }
+        }
+        if(bSleep)
+            usleep(500);
+    }
+
+
+    const int n = mvOdomFromLastFrame.size()-1;
+    // TODO: add the math for this
+    odom::Preintegrated* pOdomPreintegratedFromLastFrame = new odom::Preintegrated(mLastFrame.mOdomBias, mCurrentFrame.mOdomCalib);
+
+    // TODO: Adjust this for the new logic
+    for(int i=0; i<n; i++)
+    {
+        float tstep;
+        float delta_L, delta_R;
+        if((i==0) && (i<(n-1)))
+        {
+            float tab = mvOdomFromLastFrame[i+1].t-mvOdomFromLastFrame[i].t;
+            float tini = mvOdomFromLastFrame[i].t-mCurrentFrame.mpPrevFrame->mTimeStamp;
+            delta_L = (mvOdomFromLastFrame[i].delta_L+mvOdomFromLastFrame[i+1].delta_L-
+                    (mvOdomFromLastFrame[i+1].delta_L-mvOdomFromLastFrame[i].delta_L)*(tini/tab))*0.5f;
+            delta_R = (mvOdomFromLastFrame[i].delta_R+mvOdomFromLastFrame[i+1].delta_R-
+                    (mvOdomFromLastFrame[i+1].delta_R-mvImuFromLastFrame[i].delta_R)*(tini/tab))*0.5f;
+            tstep = mvOdomFromLastFrame[i+1].t-mCurrentFrame.mpPrevFrame->mTimeStamp;
+        }
+        else if(i<(n-1))
+        {
+            delta_L = (mvOdomFromLastFrame[i].delta_L+mvOdomFromLastFrame[i+1].delta_L)*0.5f;
+            delta_R = (mvOdomFromLastFrame[i].delta_R+mvOdomFromLastFrame[i+1].delta_R)*0.5f;
+            tstep = mvOdomFromLastFrame[i+1].t-mvOdomFromLastFrame[i].t;
+        }
+        else if((i>0) && (i==(n-1)))
+        {
+            float tab = mvOdomFromLastFrame[i+1].t-mvOdomFromLastFrame[i].t;
+            float tend = mvOdomFromLastFrame[i+1].t-mCurrentFrame.mTimeStamp;
+            delta_L = (mvOdomFromLastFrame[i].delta_L+mvOdomFromLastFrame[i+1].delta_L-
+                    (mvOdomFromLastFrame[i+1].delta_L-mvOdomFromLastFrame[i].delta_L)*(tend/tab))*0.5f;
+            delta_R = (mvOdomFromLastFrame[i].delta_R+mvOdomFromLastFrame[i+1].delta_R-
+                    (mvOdomFromLastFrame[i+1].delta_R-mvOdomFromLastFrame[i].delta_R)*(tend/tab))*0.5f;
+            tstep = mCurrentFrame.mTimeStamp-mvOdomFromLastFrame[i].t;
+        }
+        else if((i==0) && (i==(n-1)))
+        {
+            delta_L = mvOdomFromLastFrame[i].delta_L;
+            delta_R = mvOdomFromLastFrame[i].delta_R;
+            tstep = mCurrentFrame.mTimeStamp-mCurrentFrame.mpPrevFrame->mTimeStamp;
+        }
+
+        if (!mpOdomPreintegratedFromLastKF)
+            cout << "mpImuPreintegratedFromLastKF does not exist" << endl;
+        mpOdomPreintegratedFromLastKF->IntegrateNewMeasurement(acc,delta_L,delta_R);
+        pOdomPreintegratedFromLastFrame->IntegrateNewMeasurement(acc,delta_L,delta_R);
+    }
+
+    // TODO: Adjust this for the new logic
+    mCurrentFrame.mpOdomPreintegratedFrame = pOdomPreintegratedFromLastFrame;
+    mCurrentFrame.mpOdomPreintegrated = mpOdomPreintegratedFromLastKF;
+    mCurrentFrame.mpLastKeyFrame = mpLastKeyFrame;
+
+    mCurrentFrame.setIntegrated();
+
+    Verbose::PrintMess("Preintegration is finished!! ", Verbose::VERBOSITY_DEBUG);
+}
+
+void Tracking::PreintegrateImu()
 {
     //cout << "start preintegration" << endl;
 
@@ -1222,6 +1339,7 @@ void Tracking::PreintegrateIMU()
 
     Verbose::PrintMess("Preintegration is finished!! ", Verbose::VERBOSITY_DEBUG);
 }
+
 
 
 bool Tracking::PredictStateIMU()
@@ -1471,6 +1589,17 @@ void Tracking::Track()
         mTime_PreIntIMU = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t1 - t0).count();
 #endif
 
+    if (mSensor == System::ODOMETRIC_MONOCULAR && !mbCreatedMap)
+    {
+#ifdef SAVE_TIMES
+        std::chrono::steady_clock::time_point t0 = std::chrono::steady_clock::now();
+#endif
+        PreintegrateOdom();
+#ifdef SAVE_TIMES
+        std::chrono::steady_clock::time_point t1 = std::chrono::steady_clock::now();
+
+        mTime_PreIntIMU = std::chrono::duration_cast<std::chrono::duration<double,std::milli> >(t1 - t0).count();
+#endif
 
     }
     mbCreatedMap = false;
